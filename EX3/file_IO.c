@@ -3,6 +3,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "file_IO.h"
+#include "HardCodedData.h"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -226,6 +227,40 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 		}
 		fclose(fp);
 		return count;
+	}
+
+
+	/*
+	 reads the lines off a file until we reach the wanted row,
+	based on https://riptutorial.com/c/example/29223/read-lines-from-a-file
+	*/
+
+	int read_one_row(char* pathToFile, char* Line_To_Insert,int wanted_line )
+	{
+		FILE* fp = fopen(pathToFile, "r");
+		char line[Max_Size_of_Line];
+		char* current_line;
+		if (fp == NULL)
+		{
+			printf("Error opening file to get the number of rows!");
+			exit(1);
+		}
+		int count = 0;
+		int ch = 0;
+		//while (fgets(line, sizeof line, fp) != NULL)
+		while (fgets( Line_To_Insert, sizeof(char)* Max_Size_of_Line, fp) != NULL)
+		{
+			if (count == wanted_line)
+			{
+				//*Line_To_Insert = line;
+				wanted_line++;
+				break;
+			}
+			count++;
+			
+		}
+		fclose(fp);
+		return wanted_line;
 	}
 
 	

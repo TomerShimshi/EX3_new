@@ -14,5 +14,7 @@ int num_of_rows_in_a_file(char* pathToFile);
 
 int return_numbers_of_chars_in_file(char * pathToFile);
 
+int read_one_row(char* pathToFile, char* Line_To_Insert, int wanted_line);
+
 #endif
 

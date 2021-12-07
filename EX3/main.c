@@ -20,11 +20,13 @@ Project: Ex2
 #include <direct.h>
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
 
 
 
 #include "create_and_handle_processes.h"
 #include "Page.h"
+#include "HardCodedData.h"
 
 
 /*
@@ -50,7 +52,13 @@ int main(int argc, char* argv[])
 	int number_of_real_pages = pow(2.0, physycal_bits);
 	Page_def* vir_pages = calloc(number_of_vir_pages, sizeof(Page_def));
 	Page_def* real_pages = calloc(number_of_real_pages, sizeof(Page_def));
+	char* Path_to_input_file = argv[4];
 	DWORD wait_code;
+	int number_of_threds_working = 0;
+	int current_row =0 ;
+	int split_word[num_of_vars_in_row];
+	
+	char* Line_buffer= (char*)malloc(Max_Size_of_Line * sizeof(char));
 
 	if (vir_pages == NULL || real_pages == NULL) {
 		printf("Memory allocation to array of pages failed in main!");
@@ -59,7 +67,7 @@ int main(int argc, char* argv[])
 	vacent_pages_semaphore = CreateSemaphore(
 		NULL,	/* Default security attributes */
 		number_of_real_pages,		/* Initial Count - all slots are empty */
-		1,		/* Maximum Count */
+		number_of_real_pages,		/* Maximum Count */
 		NULL);  /* un-named */
 
 	Output_File_mutex_handle = CreateMutex(
@@ -73,7 +81,8 @@ int main(int argc, char* argv[])
 		NULL);  /* un-named */
 
 	if (Input_File_mutex_handle == NULL || Output_File_mutex_handle == NULL || vacent_pages_semaphore == NULL) {
-		printf("Memory allocation to mutex and semaphores failed in main!");
+		const int error = GetLastError();
+		printf("Memory allocation to mutex and semaphores failed in main! the error is %d\n", error);
 		exit(1);
 	}
 
@@ -86,4 +95,21 @@ int main(int argc, char* argv[])
 		exit(1);
 
 	}
+	/*
+	* Critical Section
+	* We can now safely access the shared resource.
+	*/
+	current_row = read_one_row(Path_to_input_file, Line_buffer, current_row);
+	/* get the first token */
+	char* temp_char = strtok(Line_buffer, " ");
+	split_word[0] = atoi(temp_char);
+
+	for (int i = 1; i < num_of_vars_in_row; i++) {
+		temp_char = strtok(NULL, " ");
+		split_word[i] = atoi(temp_char);
+	}
+	
+
+	ReleaseMutex(Input_File_mutex_handle);
+
 }

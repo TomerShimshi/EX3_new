@@ -13,10 +13,11 @@
 
 
 
-//school_thread related constants
+//current EX Constants
 
-#define NUM_OF_VALS_TO_PASS_TO_THREAD 5
-#define NUMBER_OF_MAX_SIMULTANEOUSLY_WORKING_THREADS 10
+#define Output_file_path "./Output.txt"
+#define Max_Size_of_Line  120
+#define num_of_vars_in_row 3
 
 
 

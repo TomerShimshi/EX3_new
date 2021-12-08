@@ -18,6 +18,7 @@
 #define Output_file_path "./Output.txt"
 #define Max_Size_of_Line  120
 #define num_of_vars_in_row 3
+#define size_of_page  4000
 
 
 

@@ -235,20 +235,22 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 	based on https://riptutorial.com/c/example/29223/read-lines-from-a-file
 	*/
 
-	int read_one_row(char* pathToFile, char* Line_To_Insert,int wanted_line )
+	//int read_one_row(char* pathToFile, char* Line_To_Insert,int wanted_line )
+	int read_one_row(char* pathToFile, line_def* Line_To_Insert, int wanted_line)
 	{
 		FILE* fp = fopen(pathToFile, "r");
 		char line[Max_Size_of_Line];
 		char* current_line;
 		if (fp == NULL)
 		{
-			printf("Error opening file to get the number of rows!");
+			printf("Error opening file to get each row!");
 			exit(1);
 		}
 		int count = 0;
 		int ch = 0;
 		//while (fgets(line, sizeof line, fp) != NULL)
-		while (fgets( Line_To_Insert, sizeof(char)* Max_Size_of_Line, fp) != NULL)
+		//while (fgets( Line_To_Insert, sizeof Line_To_Insert, fp) != NULL)
+		while (fgets(Line_To_Insert, sizeof line, fp) != NULL)
 		{
 			if (count == wanted_line)
 			{

@@ -143,12 +143,12 @@
     <ClInclude Include="file_IO.h" />
     <ClInclude Include="HardCodedData.h" />
     <ClInclude Include="Page.h" />
+    <ClInclude Include="Page_Thread.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="create_and_handle_processes.c" />
     <ClCompile Include="file_IO.c" />
     <ClCompile Include="main.c" />
-    <ClCompile Include="Page_Thread.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

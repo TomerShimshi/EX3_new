@@ -245,6 +245,16 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 	LONG previous_count;
 	bool need_to_wait = false;
 	char* Line_To_Write = (char*)malloc(sizeof(char) * Max_Size_of_Line);
+	char temp_str[Max_Size_of_Line];
+
+	if (Line_To_Write == NULL)
+	{
+		printf("error alocating memory for the output file write string");
+		exit(1);
+
+	}
+	
+
 	
 	int split_word[3];
 
@@ -290,12 +300,51 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 		if (vir_pages[frame_num].valid == TRUE)// meaning the current page is already in the DB
 		{
 			vir_pages[frame_num].End_Time = needed_time+ *clock; // update the end time
+			real_pages[vir_pages[frame_num].Frame_num].End_Time = vir_pages[frame_num].End_Time; // update the end time in the real page as well
 			printf("updated fram num: %d  to be %d \n", frame_num, vir_pages[frame_num].End_Time);
 		}
 		else // the page is not in the physycal page table
 			// maybe add here clear the vir table
 		{
 			need_to_wait = true;
+			int i;
+			for (i = 0; i < *p_params->num_of_real_pages; i++)
+			{
+				if (*clock > real_pages[i].End_Time)// meaning the current page finished its time
+				{// we need to remove it from the table and updte the output file
+					vir_pages[frame_num].valid = FALSE;
+					real_pages[i].valid = FALSE;
+					release_res = ReleaseSemaphore(
+						vacent_pages_semaphore,
+						1, 		// Signal that exactly one cell was emptied
+						&previous_count);
+					if (release_res == FALSE) {
+						const int error = GetLastError();
+						printf("Error when realisng semaphore  mutex error num: %d\n", error);
+						exit(1);
+					}
+					// now we need to write it to the output file:
+					sprintf(Line_To_Write, "%d", *clock);
+					strcat(Line_To_Write, " ");
+					sprintf(temp_str, "%d", i);
+
+					
+					strcat(Line_To_Write, temp_str);
+					strcat(Line_To_Write, " ");
+					sprintf(temp_str, "%d", frame_num);
+					strcat(Line_To_Write, temp_str);
+					strcat(Line_To_Write, " ");
+					strcat(Line_To_Write, "E");
+					printf("wrote to outpur: %s\n", Line_To_Write);
+					*output_file_offset += WinWriteToFile(Output_file_path, Line_To_Write, sizeof(Line_To_Write), *output_file_offset);
+					// start new line
+					WinWriteToFile(Output_file_path, "\r\n", 4, *output_file_offset);
+					*output_file_offset += 2;
+
+
+
+				}
+			}
 		}
 		// exit the critical section
 
@@ -344,15 +393,15 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			real_pages[frame_num].End_Time = *clock + needed_time;
 
 			// now we need to write it to the output file
-			char* Line_To_Write = (char*)malloc(sizeof(char) * Max_Size_of_Line);
+			
 			sprintf(Line_To_Write, "%d", *clock);
 			strcat(Line_To_Write, " ");
-			char temp_str[Max_Size_of_Line];
+			sprintf(temp_str, "%d", i);
 
-			sprintf(temp_str, "%d", frame_num);
+			
 			strcat(Line_To_Write, temp_str);
 			strcat(Line_To_Write, " ");
-			sprintf(temp_str, "%d", i);
+			sprintf(temp_str, "%d", frame_num);
 			strcat(Line_To_Write, temp_str);
 			strcat(Line_To_Write, " ");
 			strcat(Line_To_Write, "p");

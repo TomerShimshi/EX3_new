@@ -68,10 +68,12 @@ static HANDLE vir_pages_mutex_handle = NULL;
 static HANDLE clock_mutex_handle = NULL;
 static HANDLE real_pages_mutex_handle = NULL;
 static HANDLE Input_File_mutex_handle = NULL;
+static HANDLE DB_mutex_handle = NULL;
 static HANDLE vacent_pages_semaphore;
 Page_def* vir_pages = NULL;
 Page_def* real_pages = NULL;
 int* clock = NULL;
+int* output_file_offset = NULL;
 
 
 int main(int argc, char* argv[])
@@ -92,13 +94,14 @@ int main(int argc, char* argv[])
 	line_def* Line_buffers = calloc(num_of_Comandes_to_do, (Max_Size_of_Line * sizeof(char)));
 	pass_to_thread* p_parameters_struct =  calloc(num_of_Comandes_to_do, ( sizeof(pass_to_thread)));
 	clock = (int*)malloc(sizeof(int));
-
-	if (clock == NULL || number_of_real_pages == NULL || number_of_vir_pages == NULL)
+	output_file_offset = (int*)malloc(sizeof(int));
+	if (clock == NULL || number_of_real_pages == NULL || number_of_vir_pages == NULL || output_file_offset ==NULL)
 	{
 		printf("Memory allocation to clock or page numbers failed in main!");
 		exit(1);
 	}
-	*clock = -10;
+	*clock = 0;
+	*output_file_offset = 0;
 	*number_of_real_pages = pow(2.0, physycal_bits);
 	*number_of_vir_pages= pow(2.0, Virtual_bits);
 	Line_buffers =  calloc(num_of_Comandes_to_do, sizeof(*Line_buffers));
@@ -154,7 +157,12 @@ int main(int argc, char* argv[])
 		FALSE,	/* don't lock mutex immediately */
 		NULL);  /* un-named */
 
-	if (Input_File_mutex_handle == NULL || Output_File_mutex_handle == NULL || vacent_pages_semaphore == NULL || clock_mutex_handle == NULL || real_pages_mutex_handle == NULL || vir_pages_mutex_handle == NULL) {
+	DB_mutex_handle = CreateMutex(
+		NULL,   /* default security attributes */
+		FALSE,	/* don't lock mutex immediately */
+		NULL);  /* un-named */
+
+	if (Input_File_mutex_handle == NULL || Output_File_mutex_handle == NULL || vacent_pages_semaphore == NULL || clock_mutex_handle == NULL || real_pages_mutex_handle == NULL || vir_pages_mutex_handle == NULL || DB_mutex_handle == NULL) {
 		const int error = GetLastError();
 		printf("Memory allocation to mutex and semaphores failed in main! the error is %d\n", error);
 		exit(1);
@@ -233,12 +241,17 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 	}
 	pass_to_thread* p_params;
 	DWORD wait_res;
+	BOOL release_res;
+	LONG previous_count;
+	bool need_to_wait = false;
+	char* Line_To_Write = (char*)malloc(sizeof(char) * Max_Size_of_Line);
 	
-	
+	int split_word[3];
+
 	p_params = (pass_to_thread*)lpParam;
 	line_def* Line_buffer = p_params->current_line;
 	printf("current thread line is num: %s\n", Line_buffer);
-	int split_word[3];
+	
 	char* temp_char = strtok(Line_buffer, " ");
 	split_word[0] = atoi(temp_char);
 
@@ -251,11 +264,125 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 	int frame_num = split_word[1] / size_of_page;
 	int needed_time = split_word[2];
 
-	
+	while (start_time > *clock)
+	{
+		// wait for procces time
+	}
+
+
+
+
+
+
 
 	//if (start_time >= *p_params->clock)
-	if (start_time >= *clock)
+	if (start_time <= *clock)
 	{
+		// first check if the corrent addres is already in the vir page table
+		wait_res = WaitForSingleObject(DB_mutex_handle, INFINITE);
+		if (wait_res != WAIT_OBJECT_0)
+		{
+			const int error = GetLastError();
+			printf("Error when waiting for the DB Semaphore error code: %d\n", error);
+			exit(1);
+		}
+		// now we can check the DB to see if we need to add the curreent page to the tabels
+		if (vir_pages[frame_num].valid == TRUE)// meaning the current page is already in the DB
+		{
+			vir_pages[frame_num].End_Time = needed_time+ *clock; // update the end time
+			printf("updated fram num: %d  to be %d \n", frame_num, vir_pages[frame_num].End_Time);
+		}
+		else // the page is not in the physycal page table
+			// maybe add here clear the vir table
+		{
+			need_to_wait = true;
+		}
+		// exit the critical section
+
+		if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
+		{
+			const int error = GetLastError();
+			printf("Error when realisng real pages  mutex error num: %d\n", error);
+			exit(1);
+		}
+
+
+		if (need_to_wait== TRUE) // meaning the current addres is not in the page table
+		{
+			// check if we can add a page to the physecal table
+			wait_res = WaitForSingleObject(vacent_pages_semaphore, INFINITE);
+			if (wait_res != WAIT_OBJECT_0)
+			{
+				const int error = GetLastError();
+				printf("Error when waiting for multiple vacent_pages_semaphore, error code: %d\n", error);
+				exit(1);
+			}
+			// now need to check if can update all the data tabels
+			wait_res = WaitForSingleObject(DB_mutex_handle, INFINITE);
+			if (wait_res != WAIT_OBJECT_0)
+			{
+				const int error = GetLastError();
+				printf("Error when waiting for the DB Semaphore error code: %d\n", error);
+				exit(1);
+			}
+			// find the first free space and add the current addres to there
+			int i = 0;
+			for (i = 0; i < *p_params->num_of_real_pages; i++)
+			{
+				if (real_pages[i].valid == FALSE)
+				{
+					real_pages[i].Frame_num = frame_num;
+					real_pages[i].valid = TRUE;
+					real_pages[i].End_Time = *clock + needed_time;
+					break;
+				}
+			}
+
+			// now update the vir page table
+			real_pages[frame_num].Frame_num = i;
+			real_pages[frame_num].valid = TRUE;
+			real_pages[frame_num].End_Time = *clock + needed_time;
+
+			// now we need to write it to the output file
+			char* Line_To_Write = (char*)malloc(sizeof(char) * Max_Size_of_Line);
+			sprintf(Line_To_Write, "%d", *clock);
+			strcat(Line_To_Write, " ");
+			char temp_str[Max_Size_of_Line];
+
+			sprintf(temp_str, "%d", frame_num);
+			strcat(Line_To_Write, temp_str);
+			strcat(Line_To_Write, " ");
+			sprintf(temp_str, "%d", i);
+			strcat(Line_To_Write, temp_str);
+			strcat(Line_To_Write, " ");
+			strcat(Line_To_Write, "p");
+			printf("wrote to outpur: %s\n", Line_To_Write);
+			*output_file_offset += WinWriteToFile(Output_file_path, Line_To_Write, sizeof(Line_To_Write), *output_file_offset);
+			// start new line
+			WinWriteToFile(Output_file_path, "\r\n", 4, *output_file_offset);
+			*output_file_offset += 2;
+
+			// finished the insertion of a new page now we release the mutex
+
+			if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
+			{
+				const int error = GetLastError();
+				printf("Error when realisng real pages  mutex error num: %d\n", error);
+				exit(1);
+			}
+
+
+
+
+
+
+
+		}
+
+
+
+		/*
+
 		// check if we can add a page to the physecal table
 		wait_res = WaitForSingleObject(vacent_pages_semaphore, INFINITE); 
 		if (wait_res != WAIT_OBJECT_0)
@@ -284,7 +411,17 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 				break;
 			}
 		}
-
+		/*
+		release_res = ReleaseSemaphore(
+			vacent_pages_semaphore,
+			1, 		/* Signal that exactly one cell was emptied 
+			&previous_count);
+		if (release_res == FALSE) {
+			const int error = GetLastError();
+			printf("Error when realisng semaphore  mutex error num: %d\n", error);
+			exit(1);
+		}
+		
 		if (ReleaseMutex(real_pages_mutex_handle) == false)
 		{
 			const int error = GetLastError();
@@ -293,7 +430,7 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 		}
 
 
-
+			*/
 	}
 
 }

@@ -63,11 +63,7 @@ need to create the following things:
 
 
 // Variables -------------------------------------------------------------------
-static HANDLE Output_File_mutex_handle = NULL;
-static HANDLE num_of_threads_mutex_handle = NULL;
-static HANDLE vir_pages_mutex_handle = NULL;
-static HANDLE clock_mutex_handle = NULL;
-static HANDLE real_pages_mutex_handle = NULL;
+
 static HANDLE Input_File_mutex_handle = NULL;
 static HANDLE DB_mutex_handle = NULL;
 static HANDLE vacent_pages_semaphore;
@@ -139,25 +135,9 @@ int main(int argc, char* argv[])
 
 
 
-	vir_pages_mutex_handle = CreateMutex(
-		NULL,   /* default security attributes */
-		FALSE,	/* don't lock mutex immediately */
-		NULL);  /* un-named */
+	
 
-	real_pages_mutex_handle = CreateMutex(
-		NULL,   /* default security attributes */
-		FALSE,	/* don't lock mutex immediately */
-		NULL);  /* un-named */
-
-	clock_mutex_handle = CreateMutex(
-		NULL,   /* default security attributes */
-		FALSE,	/* don't lock mutex immediately */
-		NULL);  /* un-named */
-
-	Output_File_mutex_handle = CreateMutex(
-		NULL,   /* default security attributes */
-		FALSE,	/* don't lock mutex immediately */
-		NULL);  /* un-named */
+	
 
 	Input_File_mutex_handle = CreateMutex(
 		NULL,   /* default security attributes */
@@ -169,7 +149,7 @@ int main(int argc, char* argv[])
 		FALSE,	/* don't lock mutex immediately */
 		NULL);  /* un-named */
 
-	if (Input_File_mutex_handle == NULL || Output_File_mutex_handle == NULL || vacent_pages_semaphore == NULL || clock_mutex_handle == NULL || real_pages_mutex_handle == NULL || vir_pages_mutex_handle == NULL || DB_mutex_handle == NULL) {
+	if (Input_File_mutex_handle == NULL || vacent_pages_semaphore == NULL ||  DB_mutex_handle == NULL) {
 		const int error = GetLastError();
 		printf("Memory allocation to mutex and semaphores failed in main! the error is %d\n", error);
 		exit(1);
@@ -281,6 +261,8 @@ int main(int argc, char* argv[])
 	free(Line_buffers);
 	CloseHandle(DB_mutex_handle);
 	CloseHandle(vacent_pages_semaphore);
+	CloseHandle(Input_File_mutex_handle);
+	
 
 
 }

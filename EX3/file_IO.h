@@ -21,5 +21,7 @@ int return_numbers_of_chars_in_file(char * pathToFile);
 int read_one_row(char* pathToFile, line_def* Line_To_Insert, int wanted_line);
 //int read_one_row(char* pathToFile, char* Line_To_Insert, int wanted_line);
 
+int get_num_of_digits_in_an_int_number(int num);
+
 #endif
 

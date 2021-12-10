@@ -265,6 +265,22 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 		return wanted_line;
 	}
 
+/// <summary>
+/// 
+/// </Returns number of digits in an integer number>
+/// <param name="num"></num>
+/// <returns></number of digit>
+	int get_num_of_digits_in_an_int_number(int num)
+	{
+		int count = 1;
+		while (num != 0)
+		{
+			count++;
+			num = num / 10;
+		}
+		return count;
+	}
+
 	
 
 

@@ -33,6 +33,7 @@ Project: Ex2
 // Function Declarations -------------------------------------------------------
 
 DWORD WINAPI Page_thread_func(LPVOID lpParam);
+BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty);
 
 
 /*
@@ -95,6 +96,9 @@ int main(int argc, char* argv[])
 	pass_to_thread* p_parameters_struct =  calloc(num_of_Comandes_to_do, ( sizeof(pass_to_thread)));
 	clock = (int*)malloc(sizeof(int));
 	output_file_offset = (int*)malloc(sizeof(int));
+
+	DWORD wait_res;
+
 	if (clock == NULL || number_of_real_pages == NULL || number_of_vir_pages == NULL || output_file_offset ==NULL)
 	{
 		printf("Memory allocation to clock or page numbers failed in main!");
@@ -186,20 +190,17 @@ int main(int argc, char* argv[])
 	for (int i = 0; i < num_of_Comandes_to_do; i++)
 	{
 		
-		current_row = read_one_row(Path_to_input_file, &(Line_buffers[i]), current_row);
+		//current_row = read_one_row(Path_to_input_file, &(Line_buffers[i]), current_row);
+		read_one_row(Path_to_input_file, &(Line_buffers[i]), i);
 		p_parameters_struct[i].current_line = &Line_buffers[i];
-		//p_parameters_struct[i].physycal_page = real_pages;
-		//p_parameters_struct[i].virtual_page = vir_pages;
-		//p_parameters_struct[i].clock = clock;
+		
 		p_parameters_struct[i].num_of_real_pages = number_of_real_pages;
 		p_parameters_struct[i].num_of_vir_pages = number_of_vir_pages;
 
 
-		//current_row = read_one_row(Path_to_input_file, line_buffer, current_row);
-		//strcpy(Line_buffers[i], line_buffer);
+		
 		array_of_thread_pointers[i]= CreateThreadSimple(Page_thread_func, &p_parameters_struct[i], &(p_thread_ids[i]));
-		//free(line_buffer);
-	/* get the first token */
+	
 	}
 
 	
@@ -210,7 +211,56 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
-	//wait for the current batch of threads to finish working
+	// now we need to build a timer like mechanizem
+	while (true)
+	{
+		wait_res = WaitForSingleObject(DB_mutex_handle, INFINITE);
+		if (wait_res != WAIT_OBJECT_0)
+		{
+			const int error = GetLastError();
+			printf("Error when waiting for the DB Semaphore error code: %d\n", error);
+			exit(1);
+		}
+		*clock= *clock+1;
+		int max_time = 0; // a temp var to save the longest that a page needs to exsit
+		int num_of_valid_pages = 0;// check if all the pages are valid, if so advance time
+		// now we are in the critical sectiom
+		for (int i = 0; i < *number_of_real_pages; i++)
+		{
+			if (real_pages[i].End_Time > max_time)
+			{
+				max_time = real_pages[i].End_Time;
+			}
+		}
+
+		if (*clock >= (max_time+300))
+		{// meaning the program have ended
+
+			if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
+			{
+				const int error = GetLastError();
+				printf("Error when realisng real pages  mutex error num: %d\n", error);
+				exit(1);
+			}
+			break;
+
+		}
+
+		
+		write_to_file(*number_of_real_pages,(char)TRUE);
+
+
+		if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
+		{
+			const int error = GetLastError();
+			printf("Error when realisng real pages  mutex error num: %d\n", error);
+			exit(1);
+		}
+
+		
+	}
+
+	//wait for all the threads to finish working
 	wait_code = WaitForMultipleObjects(num_of_Comandes_to_do, array_of_thread_pointers, TRUE, INFINITE);
 	if (wait_code == WAIT_FAILED)
 	{
@@ -246,6 +296,7 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 	bool need_to_wait = false;
 	char* Line_To_Write = (char*)malloc(sizeof(char) * Max_Size_of_Line);
 	char temp_str[Max_Size_of_Line];
+	int num_of_bits_to_write = 0;// saves the number of bits yo write to the output file
 
 	if (Line_To_Write == NULL)
 	{
@@ -299,6 +350,7 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 		// now we can check the DB to see if we need to add the curreent page to the tabels
 		if (vir_pages[frame_num].valid == TRUE)// meaning the current page is already in the DB
 		{
+			
 			vir_pages[frame_num].End_Time = needed_time+ *clock; // update the end time
 			real_pages[vir_pages[frame_num].Frame_num].End_Time = vir_pages[frame_num].End_Time; // update the end time in the real page as well
 			printf("updated fram num: %d  to be %d \n", frame_num, vir_pages[frame_num].End_Time);
@@ -307,44 +359,9 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			// maybe add here clear the vir table
 		{
 			need_to_wait = true;
-			int i;
-			for (i = 0; i < *p_params->num_of_real_pages; i++)
-			{
-				if (*clock > real_pages[i].End_Time)// meaning the current page finished its time
-				{// we need to remove it from the table and updte the output file
-					vir_pages[frame_num].valid = FALSE;
-					real_pages[i].valid = FALSE;
-					release_res = ReleaseSemaphore(
-						vacent_pages_semaphore,
-						1, 		// Signal that exactly one cell was emptied
-						&previous_count);
-					if (release_res == FALSE) {
-						const int error = GetLastError();
-						printf("Error when realisng semaphore  mutex error num: %d\n", error);
-						exit(1);
-					}
-					// now we need to write it to the output file:
-					sprintf(Line_To_Write, "%d", *clock);
-					strcat(Line_To_Write, " ");
-					sprintf(temp_str, "%d", i);
-
-					
-					strcat(Line_To_Write, temp_str);
-					strcat(Line_To_Write, " ");
-					sprintf(temp_str, "%d", frame_num);
-					strcat(Line_To_Write, temp_str);
-					strcat(Line_To_Write, " ");
-					strcat(Line_To_Write, "E");
-					printf("wrote to outpur: %s\n", Line_To_Write);
-					*output_file_offset += WinWriteToFile(Output_file_path, Line_To_Write, sizeof(Line_To_Write), *output_file_offset);
-					// start new line
-					WinWriteToFile(Output_file_path, "\r\n", 4, *output_file_offset);
-					*output_file_offset += 2;
-
-
-
-				}
-			}
+			write_to_file(*p_params->num_of_real_pages,TRUE);
+							
+			
 		}
 		// exit the critical section
 
@@ -359,6 +376,7 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 		if (need_to_wait== TRUE) // meaning the current addres is not in the page table
 		{
 			// check if we can add a page to the physecal table
+
 			wait_res = WaitForSingleObject(vacent_pages_semaphore, INFINITE);
 			if (wait_res != WAIT_OBJECT_0)
 			{
@@ -388,25 +406,28 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			}
 
 			// now update the vir page table
-			real_pages[frame_num].Frame_num = i;
-			real_pages[frame_num].valid = TRUE;
-			real_pages[frame_num].End_Time = *clock + needed_time;
+			vir_pages[frame_num].Frame_num = i;
+			vir_pages[frame_num].valid = TRUE;
+			vir_pages[frame_num].End_Time = *clock + needed_time;
 
 			// now we need to write it to the output file
-			
+			num_of_bits_to_write = get_num_of_digits_in_an_int_number(*clock);
 			sprintf(Line_To_Write, "%d", *clock);
 			strcat(Line_To_Write, " ");
 			sprintf(temp_str, "%d", i);
-
+			num_of_bits_to_write += get_num_of_digits_in_an_int_number(i);
 			
 			strcat(Line_To_Write, temp_str);
+			num_of_bits_to_write += get_num_of_digits_in_an_int_number(frame_num);
 			strcat(Line_To_Write, " ");
 			sprintf(temp_str, "%d", frame_num);
 			strcat(Line_To_Write, temp_str);
 			strcat(Line_To_Write, " ");
 			strcat(Line_To_Write, "p");
+			num_of_bits_to_write += 4;// added the spaces and char to the sum
 			printf("wrote to outpur: %s\n", Line_To_Write);
-			*output_file_offset += WinWriteToFile(Output_file_path, Line_To_Write, sizeof(Line_To_Write), *output_file_offset);
+			WinWriteToFile(Output_file_path, Line_To_Write, num_of_bits_to_write, *output_file_offset);
+			*output_file_offset += num_of_bits_to_write;
 			// start new line
 			WinWriteToFile(Output_file_path, "\r\n", 4, *output_file_offset);
 			*output_file_offset += 2;
@@ -497,3 +518,63 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 	}
 
 	*/
+
+BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty)
+{
+	int i;
+	LONG previous_count;
+	BOOL release_res;
+	char* Line_To_Write = (char*)malloc(sizeof(char) * Max_Size_of_Line);
+	char temp_str[Max_Size_of_Line];
+	if (Line_To_Write == NULL)
+	{
+		printf("error alocating memory for the output file write string");
+		exit(1);
+
+	}
+	int num_of_bits_to_write = 0;// saves the number of bits yo write to the output file
+	if (need_to_empty == TRUE)
+	{
+		for (i = 0; i < num_of_real_pages; i++)
+		{
+			if (*clock > real_pages[i].End_Time && real_pages[i].valid == TRUE)// meaning the current page finished its time
+			{// we need to remove it from the table and updte the output file
+				vir_pages[real_pages[i].Frame_num].valid = FALSE;
+				real_pages[i].valid = FALSE;
+				release_res = ReleaseSemaphore(
+					vacent_pages_semaphore,
+					1, 		// Signal that exactly one cell was emptied
+					&previous_count);
+				if (release_res == FALSE) {
+					const int error = GetLastError();
+					printf("Error when realisng semaphore  mutex error num: %d\n", error);
+					exit(1);
+				}
+
+				// now we need to write it to the output file:
+				num_of_bits_to_write = get_num_of_digits_in_an_int_number(*clock);
+				sprintf(Line_To_Write, "%d", *clock);
+				strcat(Line_To_Write, " ");
+				sprintf(temp_str, "%d", i);
+				num_of_bits_to_write += get_num_of_digits_in_an_int_number(i);
+
+
+				strcat(Line_To_Write, temp_str);
+				strcat(Line_To_Write, " ");
+				sprintf(temp_str, "%d", real_pages[i].Frame_num);
+				num_of_bits_to_write += get_num_of_digits_in_an_int_number(real_pages[i].Frame_num);
+				strcat(Line_To_Write, temp_str);
+				strcat(Line_To_Write, " ");
+				strcat(Line_To_Write, "E");
+				num_of_bits_to_write += 4;// added the spaces and char to the sum
+				printf("wrote to outpur: %s\n", Line_To_Write);
+				WinWriteToFile(Output_file_path, Line_To_Write, num_of_bits_to_write, *output_file_offset);
+				*output_file_offset += num_of_bits_to_write;
+				// start new line
+				//WinWriteToFile(Output_file_path, "\r\n", 4, *output_file_offset);
+				//*output_file_offset += 2;
+			}
+		}
+	}
+	return TRUE;
+}

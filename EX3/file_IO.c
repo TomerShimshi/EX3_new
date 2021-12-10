@@ -215,7 +215,7 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 			printf("Error opening file to get the number of rows!");
 			exit(1);
 		}
-		int count = 0;
+		int count = 1;
 		int ch = 0;
 		while (!feof(fp))
 		{
@@ -272,7 +272,9 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 /// <returns></number of digit>
 	int get_num_of_digits_in_an_int_number(int num)
 	{
-		int count = 1;
+		if (num == 0)
+			return 1;
+		int count = 0;
 		while (num != 0)
 		{
 			count++;

@@ -279,6 +279,8 @@ int main(int argc, char* argv[])
 	free(vir_pages);
 	free(real_pages);
 	free(Line_buffers);
+	CloseHandle(DB_mutex_handle);
+	CloseHandle(vacent_pages_semaphore);
 
 
 }
@@ -485,31 +487,7 @@ BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty, int frame_num, int
 				things_to_write[0] = j;
 				things_to_write[1] = real_pages[j].Frame_num;
 				foud_page_to_empty = TRUE;
-				
-				/*
-				num_of_bits_to_write = get_num_of_digits_in_an_int_number(*clock);
-				sprintf(Line_To_Write, "%d", *clock);
-				strcat(Line_To_Write, " ");
-
-				sprintf(temp_str, "%d", j);
-				num_of_bits_to_write += get_num_of_digits_in_an_int_number(j);
-
-
-				strcat(Line_To_Write, temp_str);
-				strcat(Line_To_Write, " ");
-				sprintf(temp_str, "%d", real_pages[j].Frame_num);
-				num_of_bits_to_write += get_num_of_digits_in_an_int_number(real_pages[i].Frame_num);
-				strcat(Line_To_Write, temp_str);
-				strcat(Line_To_Write, " ");
-				strcat(Line_To_Write, "E");
-				num_of_bits_to_write += 4;// added the spaces and char to the sum
-				printf("wrote to outpur: %s\n", Line_To_Write);
-				WinWriteToFile(Output_file_path, Line_To_Write, num_of_bits_to_write, *output_file_offset);
-				*output_file_offset += num_of_bits_to_write;
-				// start new line
-				WinWriteToFile(Output_file_path, "\r\n", 4, *output_file_offset);
-				*output_file_offset += 2;
-				* */
+			
 			}
 		}
 	}

@@ -67,11 +67,14 @@ need to create the following things:
 static HANDLE Input_File_mutex_handle = NULL;
 static HANDLE DB_mutex_handle = NULL;
 static HANDLE vacent_pages_semaphore;
+static HANDLE increase_clock_semaphore;
 Page_def* vir_pages = NULL;
 Page_def* real_pages = NULL;
-int* clock = NULL;
+int* clock = NULL; // this var will the current time
 int* output_file_offset = NULL;
-int* semaphore_count = NULL;
+
+int* importent_times = NULL; // this array wil store all the importent times
+int* num_of_times = NULL;
 
 
 
@@ -92,27 +95,37 @@ int main(int argc, char* argv[])
 	DWORD* p_thread_ids = calloc(num_of_Comandes_to_do, sizeof(DWORD));
 	line_def* Line_buffers = calloc(num_of_Comandes_to_do, (Max_Size_of_Line * sizeof(char)));
 	pass_to_thread* p_parameters_struct =  calloc(num_of_Comandes_to_do, ( sizeof(pass_to_thread)));
+	importent_times =(int*) calloc((2*num_of_Comandes_to_do), ( sizeof(int))); // evry thtead has a start time and an end time
 	clock = (int*)malloc(sizeof(int));
 	output_file_offset = (int*)malloc(sizeof(int));
-	semaphore_count = (int*)malloc(sizeof(int));
+	num_of_times = (int*)malloc(sizeof(int));
+	
+	
 
 	DWORD wait_res;
 
-	if (clock == NULL || number_of_real_pages == NULL || number_of_vir_pages == NULL || output_file_offset ==NULL || semaphore_count ==NULL)
+	if (clock == NULL || number_of_real_pages == NULL || number_of_vir_pages == NULL || output_file_offset ==NULL || num_of_times ==NULL)
 	{
 		printf("Memory allocation to clock or page numbers failed in main!");
 		exit(1);
 	}
 	*clock = 0;
+	*num_of_times = 0;
 	*output_file_offset = 0;
 	*number_of_real_pages = pow(2.0, physycal_bits);
 	*number_of_vir_pages= pow(2.0, Virtual_bits);
 	Line_buffers =  calloc(num_of_Comandes_to_do, sizeof(*Line_buffers));
 	HANDLE* array_of_thread_pointers = calloc(num_of_Comandes_to_do, sizeof(HANDLE));
 
-	if (vir_pages == NULL || real_pages == NULL || array_of_thread_pointers == NULL || Line_buffers == NULL || p_thread_ids == NULL || p_parameters_struct == NULL) {
+	if (vir_pages == NULL || real_pages == NULL || array_of_thread_pointers == NULL || Line_buffers == NULL || p_thread_ids == NULL || p_parameters_struct == NULL || importent_times == NULL) {
 		printf("Memory allocation to array of pages failed in main!");
 		exit(1);
+	}
+
+	// init the times array
+	for (int i = 0; i < (2 * num_of_Comandes_to_do); i++)
+	{
+		importent_times[i] = -1;
 	}
 	// init all the pages
 	for (int i = 0; i < *number_of_real_pages; i++)
@@ -129,12 +142,18 @@ int main(int argc, char* argv[])
 	}
 	vacent_pages_semaphore = CreateSemaphore(
 		NULL,	/* Default security attributes */
-		*number_of_real_pages,		/* Initial Count - all slots are empty */
+		*number_of_real_pages,		/*all slots are empty */
 		*number_of_real_pages,		/* Maximum Count */
 		NULL);  /* un-named */
-	*semaphore_count = *number_of_real_pages;
+	
 
-
+	// create a semephore to signal that we can move time
+	increase_clock_semaphore = CreateSemaphore( 
+		NULL,	/* Default security attributes */
+		0,		/* all slots are full */
+		1,		/* Maximum Count */
+		NULL);  /* un-named */
+	
 
 	
 
@@ -148,9 +167,9 @@ int main(int argc, char* argv[])
 	DB_mutex_handle = CreateMutex(
 		NULL,   /* default security attributes */
 		FALSE,	/* don't lock mutex immediately */
-		NULL);  /* un-named */
+		NULL);  /* un-named */ 
 
-	if (Input_File_mutex_handle == NULL || vacent_pages_semaphore == NULL ||  DB_mutex_handle == NULL) {
+	if (Input_File_mutex_handle == NULL || vacent_pages_semaphore == NULL ||  DB_mutex_handle == NULL || increase_clock_semaphore) {
 		const int error = GetLastError();
 		printf("Memory allocation to mutex and semaphores failed in main! the error is %d\n", error);
 		exit(1);
@@ -196,6 +215,45 @@ int main(int argc, char* argv[])
 	}
 
 	// now we need to build a timer like mechanizem
+
+	while (true)
+	{
+		wait_res = WaitForSingleObject(increase_clock_semaphore, INFINITE);
+		if (wait_res != WAIT_OBJECT_0)
+		{
+			const int error = GetLastError();
+			printf("Error when waiting for increase clock_semaphore, error code: %d\n", error);
+			exit(1);
+		}
+
+		wait_res = WaitForSingleObject(DB_mutex_handle, INFINITE);
+		if (wait_res != WAIT_OBJECT_0)
+		{
+			const int error = GetLastError();
+			printf("Error when waiting for the DB Semaphore error code: %d\n", error);
+			exit(1);
+		}
+		
+
+
+
+
+		write_to_file(*number_of_real_pages, TRUE, 0, 0); //remove finished pages
+		*clock = find_neareset(importent_times, *clock, *num_of_times);
+		
+
+		// exot the critical section
+		if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
+		{
+			const int error = GetLastError();
+			printf("Error when realisng real pages  mutex error num: %d\n", error);
+			exit(1);
+		}
+
+
+	}
+
+	/*
 	while (true)
 	{
 		wait_res = WaitForSingleObject(DB_mutex_handle, INFINITE);
@@ -231,6 +289,8 @@ int main(int argc, char* argv[])
 		}
 
 		
+
+		
 		write_to_file(*number_of_real_pages,TRUE,0,0);
 
 		// exot the critical section
@@ -243,6 +303,7 @@ int main(int argc, char* argv[])
 
 		
 	}
+	*/
 
 	//wait for all the threads to finish working
 	wait_code = WaitForMultipleObjects(num_of_Comandes_to_do, array_of_thread_pointers, TRUE, INFINITE);
@@ -313,6 +374,27 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 	int frame_num = split_word[1] / size_of_page;
 	int needed_time = split_word[2];
 
+	wait_res = WaitForSingleObject(DB_mutex_handle, INFINITE);
+	if (wait_res != WAIT_OBJECT_0)
+	{
+		const int error = GetLastError();
+		printf("Error when waiting for the DB Semaphore error code: %d\n", error);
+		exit(1);
+	}
+
+	// now we are in the safe zone we can add times to the time array
+	*num_of_times = *num_of_times + 1;
+	add_member(&importent_times, start_time,*num_of_times);
+	
+
+	// after we added to the importent times array we can leave safe zone and release the mutex
+	if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
+	{
+		const int error = GetLastError();
+		printf("Error when realisng real pages  mutex error num: %d\n", error);
+		exit(1);
+	}
+
 	while (start_time > *clock)
 	{
 		// wait for procces time
@@ -341,6 +423,9 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			
 			vir_pages[frame_num].End_Time = needed_time+ *clock; // update the end time
 			real_pages[vir_pages[frame_num].Frame_num].End_Time = vir_pages[frame_num].End_Time; // update the end time in the real page as well
+
+			find_neareset(importent_times, *clock, *num_of_times); // the clock is the closest to itself so it will remove it 
+			add_member(&importent_times, vir_pages[frame_num].End_Time, *num_of_times);
 			printf("updated fram num: %d  to be %d \n", frame_num, vir_pages[frame_num].End_Time);
 		}
 		else // the page is not in the physycal page table
@@ -372,7 +457,7 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 				printf("Error when waiting for multiple vacent_pages_semaphore, error code: %d\n", error);
 				exit(1);
 			}
-			*semaphore_count = *semaphore_count -1;
+			
 			//printf("*semaphore_count =: %d\n", *semaphore_count);
 			//printf(" fram num: %d  acquired the semaphore my line starts with  %d \n", frame_num, start_time);
 			// now need to check if can update all the data tabels
@@ -405,6 +490,16 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			
 			write_to_file(*p_params->num_of_real_pages, FALSE, frame_num, i);
 			// finished the insertion of a new page now we release the mutex
+
+			release_res = ReleaseSemaphore(
+				increase_clock_semaphore,
+				1, 		// Signal that exactly one cell was emptied
+				&previous_count);
+			if (release_res == FALSE) {
+				const int error = GetLastError();
+				printf("Error when realisng semaphore  mutex error num: %d\n", error);
+				exit(1);
+			}
 
 			if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
 			{
@@ -464,7 +559,7 @@ BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty, int frame_num, int
 					printf("Error when realisng semaphore  mutex error num: %d\n", error);
 					exit(1);
 				}
-				*semaphore_count = *semaphore_count + 1;
+				
 				//printf("*semaphore_count =: %d\n", *semaphore_count);
 				// now we need to write it to the output file:
 				things_to_write[0] = j;

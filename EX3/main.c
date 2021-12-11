@@ -74,6 +74,7 @@ int* output_file_offset = NULL;
 int* semaphore_count = NULL;
 
 
+
 int main(int argc, char* argv[])
 {	
 	float Virtual_bits = atoi(argv[2])-12;

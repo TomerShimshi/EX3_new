@@ -94,7 +94,7 @@ int main(int argc, char* argv[])
 	DWORD* p_thread_ids = calloc(num_of_Comandes_to_do, sizeof(DWORD));
 	line_def* Line_buffers = calloc(num_of_Comandes_to_do, (Max_Size_of_Line * sizeof(char)));
 	pass_to_thread* p_parameters_struct =  calloc(num_of_Comandes_to_do, ( sizeof(pass_to_thread)));
-	importent_times =(int*) calloc((2*num_of_Comandes_to_do), ( sizeof(int))); // evry thtead has a start time and an end time
+	importent_times =(int*) calloc((num_of_Comandes_to_do), ( sizeof(int))); // evry thtead has a start time and an end time
 	clock = (int*)malloc(sizeof(int));
 	output_file_offset = (int*)malloc(sizeof(int));
 	num_of_times = (int*)malloc(sizeof(int));
@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
 	}
 
 	// init the times array
-	for (int i = 0; i < (2 * num_of_Comandes_to_do); i++)
+	for (int i = 0; i < ( num_of_Comandes_to_do); i++)
 	{
 		importent_times[i] = -1;
 	}

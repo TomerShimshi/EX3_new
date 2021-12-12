@@ -4,7 +4,6 @@
 
 #include "file_IO.h"
 #include "HardCodedData.h"
-
 #include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -288,14 +287,15 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 	// and adds the integer in the next free space
 	void add_member(int* array, int num_to_add, int size_of_array)
 	{
-		for (int i = 0; i < size_of_array; i++)
+		for (int i = 0; i < (size_of_array); i++)//i+=(sizeof(int)))
 		{
 			//printf(" the current number is %d \n", array[i]);
-			if (array[i] == -1)
+			if (*array == -1)
 			{
-				array[i] = num_to_add;
+				*array = num_to_add;
 				break;
 			}
+			array++;
 		}
 	}
 
@@ -308,17 +308,18 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 		int nearest_num = -1;
 		for (int j = 0; j < size_of_array; j++)
 		{
-			printf(" the current number is %d \n", array[i]);
-			if ((array[i] - wanted_num) <= min_delta && array[i] != wanted_num && array[i] != -1)
+			//printf(" the current number is %d \n", array[i]);
+			if ((*array - wanted_num) <= min_delta && *array != wanted_num && *array != -1)
 			{
-				min_delta = (array[i] - wanted_num);
+				min_delta = abs(*array- wanted_num);
 				i = j;
-				nearest_num = array[i];
+				nearest_num = *array;
 			}
-			else if (array[i] == wanted_num)
+			else if (*array == wanted_num)
 			{
-				array[i] = -1; // remove the num from the array
+				*array = -1; // remove the num from the array
 			}
+			array++;
 		}
 		//array[i] = -1; // remove from array
 		return nearest_num;

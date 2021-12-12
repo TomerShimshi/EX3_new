@@ -146,16 +146,16 @@ int main(int argc, char* argv[])
 		*number_of_real_pages,		/* Maximum Count */
 		NULL);  /* un-named */
 	
-
+	/*
 	// create a semephore to signal that we can move time
 	increase_clock_semaphore = CreateSemaphore( 
-		NULL,	/* Default security attributes */
-		0,		/* all slots are full */
-		1,		/* Maximum Count */
-		NULL);  /* un-named */
-	
+		NULL,	// Default security attributes 
+		0,		// all slots are full 
+		1,		// Maximum Count 
+		NULL);  // un-named 
+		*/
 
-	
+	increase_clock_semaphore=CreateSemaphore(NULL, 0, 1, NULL);
 
 	
 
@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
 		FALSE,	/* don't lock mutex immediately */
 		NULL);  /* un-named */ 
 
-	if (Input_File_mutex_handle == NULL || vacent_pages_semaphore == NULL ||  DB_mutex_handle == NULL || increase_clock_semaphore) {
+	if (Input_File_mutex_handle == NULL || vacent_pages_semaphore == NULL ||  DB_mutex_handle == NULL || increase_clock_semaphore == NULL) {
 		const int error = GetLastError();
 		printf("Memory allocation to mutex and semaphores failed in main! the error is %d\n", error);
 		exit(1);

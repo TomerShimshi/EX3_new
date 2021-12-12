@@ -23,9 +23,9 @@ int read_one_row(char* pathToFile, line_def* Line_To_Insert, int wanted_line);
 
 int get_num_of_digits_in_an_int_number(int num);
 
-void add_member(int* array[], int num_to_add, int size_of_array);
+void add_member(int* array, int num_to_add, int size_of_array);
 
-int find_neareset(int* array[], int wanted_num, int size_of_array);
+int find_neareset(int* array, int wanted_num, int size_of_array);
 
 #endif
 

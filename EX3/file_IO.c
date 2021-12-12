@@ -286,13 +286,14 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 
 	// the follwing func recives an initialize to zero array and its size and integer 
 	// and adds the integer in the next free space
-	void add_member(int* array[] , int num_to_add, int size_of_array)
+	void add_member(int* array, int num_to_add, int size_of_array)
 	{
 		for (int i = 0; i < size_of_array; i++)
 		{
-			if (*array[i] == -1)
+			//printf(" the current number is %d \n", array[i]);
+			if (array[i] == -1)
 			{
-				*array[i] = num_to_add;
+				array[i] = num_to_add;
 				break;
 			}
 		}
@@ -300,25 +301,26 @@ https://riptutorial.com/winapi/example/5736/create-a-file-and-write-to-it
 
 	// the following func recives an array of int, its size find the nearest larger number
 	// and removes the found num from the array
-	int find_neareset(int* array[], int wanted_num, int size_of_array)
+	int find_neareset(int* array, int wanted_num, int size_of_array)
 	{
 		int i = 0;
-		int min_delta= sizeof(int); // almost infinity
-		int nearest_num = array[i];
+		int min_delta= 32000; // almost infinity
+		int nearest_num = -1;
 		for (int j = 0; j < size_of_array; j++)
 		{
-			if ((array[i] - wanted_num) <= min_delta && array[i] != wanted_num)
+			printf(" the current number is %d \n", array[i]);
+			if ((array[i] - wanted_num) <= min_delta && array[i] != wanted_num && array[i] != -1)
 			{
 				min_delta = (array[i] - wanted_num);
 				i = j;
 				nearest_num = array[i];
 			}
-			else if (array[i] != wanted_num)
+			else if (array[i] == wanted_num)
 			{
 				array[i] = -1; // remove the num from the array
 			}
 		}
-		array[i] = -1; // remove from array
+		//array[i] = -1; // remove from array
 		return nearest_num;
 	}
 

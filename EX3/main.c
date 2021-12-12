@@ -84,8 +84,7 @@ int main(int argc, char* argv[])
 	float physycal_bits = atoi(argv[3]) - 12;
 	int* number_of_vir_pages = (int*)malloc(sizeof(int)); //pow(2.0, Virtual_bits);
 	int* number_of_real_pages = (int*)malloc(sizeof(int)); //pow(2.0, physycal_bits);
-	vir_pages = calloc(number_of_vir_pages, sizeof(Page_def));
-	real_pages = calloc(number_of_real_pages, sizeof(Page_def));
+	
 	char* Path_to_input_file = argv[4];
 	DWORD wait_code;
 	int number_of_threds_working = 0;
@@ -114,11 +113,14 @@ int main(int argc, char* argv[])
 	*output_file_offset = 0;
 	*number_of_real_pages = pow(2.0, physycal_bits);
 	*number_of_vir_pages= pow(2.0, Virtual_bits);
+	vir_pages = calloc(*number_of_vir_pages, sizeof(Page_def));
+	real_pages = calloc(*number_of_real_pages, sizeof(Page_def));
 	Line_buffers =  calloc(num_of_Comandes_to_do, sizeof(*Line_buffers));
 	HANDLE* array_of_thread_pointers = calloc(num_of_Comandes_to_do, sizeof(HANDLE));
 
 	if (vir_pages == NULL || real_pages == NULL || array_of_thread_pointers == NULL || Line_buffers == NULL || p_thread_ids == NULL || p_parameters_struct == NULL || importent_times == NULL) {
-		printf("Memory allocation to array of pages failed in main!");
+		const int error = GetLastError();
+		printf("Memory allocation to array of pages failed in main! error num %d", error);
 		exit(1);
 	}
 
@@ -146,14 +148,7 @@ int main(int argc, char* argv[])
 		*number_of_real_pages,		/* Maximum Count */
 		NULL);  /* un-named */
 	
-	/*
-	// create a semephore to signal that we can move time
-	increase_clock_semaphore = CreateSemaphore( 
-		NULL,	// Default security attributes 
-		0,		// all slots are full 
-		1,		// Maximum Count 
-		NULL);  // un-named 
-		*/
+	
 
 	increase_clock_semaphore=CreateSemaphore(NULL, 0, 1, NULL);
 
@@ -215,7 +210,7 @@ int main(int argc, char* argv[])
 	}
 
 	// now we need to build a timer like mechanizem
-
+	
 	while (true)
 	{
 		wait_res = WaitForSingleObject(increase_clock_semaphore, INFINITE);
@@ -249,61 +244,14 @@ int main(int argc, char* argv[])
 			printf("Error when realisng real pages  mutex error num: %d\n", error);
 			exit(1);
 		}
-
-
-	}
-
-	/*
-	while (true)
-	{
-		wait_res = WaitForSingleObject(DB_mutex_handle, INFINITE);
-		if (wait_res != WAIT_OBJECT_0)
+		if (*clock == -1)
 		{
-			const int error = GetLastError();
-			printf("Error when waiting for the DB Semaphore error code: %d\n", error);
-			exit(1);
-		}
-		*clock= *clock+1;
-		int max_time = 0; // a temp var to save the longest that a page needs to exsit
-		int num_of_valid_pages = 0;// check if all the pages are valid, if so advance time
-		// now we are in the critical sectiom
-		for (int i = 0; i < *number_of_real_pages; i++)
-		{
-			if (real_pages[i].End_Time > max_time)
-			{
-				max_time = real_pages[i].End_Time;
-			}
-		}
-
-		if (*clock >= (max_time+300))
-		{// meaning the program have ended
-
-			if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
-			{
-				const int error = GetLastError();
-				printf("Error when realisng real pages  mutex error num: %d\n", error);
-				exit(1);
-			}
 			break;
-
 		}
 
-		
-
-		
-		write_to_file(*number_of_real_pages,TRUE,0,0);
-
-		// exot the critical section
-		if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
-		{
-			const int error = GetLastError();
-			printf("Error when realisng real pages  mutex error num: %d\n", error);
-			exit(1);
-		}
-
-		
 	}
-	*/
+
+	
 
 	//wait for all the threads to finish working
 	wait_code = WaitForMultipleObjects(num_of_Comandes_to_do, array_of_thread_pointers, TRUE, INFINITE);
@@ -384,7 +332,7 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 
 	// now we are in the safe zone we can add times to the time array
 	*num_of_times = *num_of_times + 1;
-	add_member(&importent_times, start_time,*num_of_times);
+	add_member(importent_times, start_time,*num_of_times);
 	
 
 	// after we added to the importent times array we can leave safe zone and release the mutex
@@ -425,7 +373,7 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			real_pages[vir_pages[frame_num].Frame_num].End_Time = vir_pages[frame_num].End_Time; // update the end time in the real page as well
 
 			find_neareset(importent_times, *clock, *num_of_times); // the clock is the closest to itself so it will remove it 
-			add_member(&importent_times, vir_pages[frame_num].End_Time, *num_of_times);
+			add_member(importent_times, vir_pages[frame_num].End_Time, *num_of_times);
 			printf("updated fram num: %d  to be %d \n", frame_num, vir_pages[frame_num].End_Time);
 		}
 		else // the page is not in the physycal page table

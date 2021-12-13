@@ -34,6 +34,7 @@ Project: Ex2
 
 DWORD WINAPI Page_thread_func(LPVOID lpParam);
 BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty, int frame_num, int i);
+BOOL check_if_need_to_advance_time(int num_of_vir_pages);
 
 
 /*
@@ -117,6 +118,7 @@ int main(int argc, char* argv[])
 	real_pages = calloc(*number_of_real_pages, sizeof(Page_def));
 	Line_buffers =  calloc(num_of_Comandes_to_do, sizeof(*Line_buffers));
 	HANDLE* array_of_thread_pointers = calloc(num_of_Comandes_to_do, sizeof(HANDLE));
+	BOOL Start_the_clock = FALSE;// starts the clock only after all the pages finished
 
 	if (vir_pages == NULL || real_pages == NULL || array_of_thread_pointers == NULL || Line_buffers == NULL || p_thread_ids == NULL || p_parameters_struct == NULL || importent_times == NULL) {
 		const int error = GetLastError();
@@ -209,9 +211,15 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 
+	
+	while (num_of_Comandes_to_do > *num_of_times)
+	{
+		//Start_the_clock = TRUE;
+	}
+	
 	// now we need to build a timer like mechanizem
 	
-	while (true)
+	while (TRUE)
 	{
 		wait_res = WaitForSingleObject(increase_clock_semaphore, INFINITE);
 		if (wait_res != WAIT_OBJECT_0)
@@ -233,9 +241,9 @@ int main(int argc, char* argv[])
 
 
 
-		write_to_file(*number_of_real_pages, TRUE, 0, 0); //remove finished pages
-		*clock = find_neareset(importent_times, *clock, *num_of_times);
 		
+		*clock = find_neareset(importent_times, *clock, *num_of_times);
+		write_to_file(*number_of_real_pages, TRUE, 0, 0); //remove finished pages
 
 		// exot the critical section
 		if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
@@ -381,7 +389,14 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 		{
 			need_to_wait = true;
 			write_to_file(*p_params->num_of_real_pages,TRUE,0,0);
-							
+			// check if the slots are full at the current time advance the timer
+			if (check_if_need_to_advance_time(*p_params->num_of_real_pages))
+			{
+				release_res = ReleaseSemaphore(
+					increase_clock_semaphore,
+					1, 		// Signal that exactly one cell was emptied
+					&previous_count);
+			}
 			
 		}
 		// exit the critical section
@@ -434,9 +449,13 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			vir_pages[frame_num].valid = TRUE;
 			vir_pages[frame_num].End_Time = *clock + needed_time;
 
-			// now we need to write it to the output file
 			
+			// now we need to write it to the output file
 			write_to_file(*p_params->num_of_real_pages, FALSE, frame_num, i);
+			// now we need to remove the start time and add the finish time
+			find_neareset(importent_times, start_time, *num_of_times);
+			
+			add_member(importent_times, vir_pages[frame_num].End_Time, *num_of_times);
 			// finished the insertion of a new page now we release the mutex
 
 			release_res = ReleaseSemaphore(
@@ -560,4 +579,18 @@ BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty, int frame_num, int
 	//return TRUE;
 	}
 	return TRUE;
+}
+
+BOOL check_if_need_to_advance_time(int num_of_vir_pages)
+{
+	BOOL advance = TRUE;
+	for (int i = 0; i < num_of_vir_pages; i++)
+	{
+		if (vir_pages[i].valid == FALSE)
+		{
+			return FALSE;
+		}
+	}
+	return TRUE;
+
 }

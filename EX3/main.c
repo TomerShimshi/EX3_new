@@ -118,7 +118,7 @@ int main(int argc, char* argv[])
 	real_pages = calloc(*number_of_real_pages, sizeof(Page_def));
 	Line_buffers =  calloc(num_of_Comandes_to_do, sizeof(*Line_buffers));
 	HANDLE* array_of_thread_pointers = calloc(num_of_Comandes_to_do, sizeof(HANDLE));
-	BOOL Start_the_clock = FALSE;// starts the clock only after all the pages finished
+	BOOL check_remove = FALSE;// if we got a timeout while waiting for clock advance we check if we need to remove a
 
 	if (vir_pages == NULL || real_pages == NULL || array_of_thread_pointers == NULL || Line_buffers == NULL || p_thread_ids == NULL || p_parameters_struct == NULL || importent_times == NULL) {
 		const int error = GetLastError();
@@ -221,8 +221,9 @@ int main(int argc, char* argv[])
 	
 	while (TRUE)
 	{
-		wait_res = WaitForSingleObject(increase_clock_semaphore, INFINITE);
-		if (wait_res != WAIT_OBJECT_0)
+		//wait_res = WaitForSingleObject(increase_clock_semaphore, INFINITE); //max_wait_time
+		wait_res = WaitForSingleObject(increase_clock_semaphore, max_wait_time); //max_wait_time
+		if (wait_res != WAIT_OBJECT_0 && wait_res != WAIT_TIMEOUT) // meaning no thread can use the current time
 		{
 			const int error = GetLastError();
 			printf("Error when waiting for increase clock_semaphore, error code: %d\n", error);
@@ -237,13 +238,28 @@ int main(int argc, char* argv[])
 			exit(1);
 		}
 		
-
+		wait_res = WaitForSingleObject(vacent_pages_semaphore, 1); //max_wait_time
+		if (wait_res == WAIT_TIMEOUT)
+		{
+			write_to_file(*number_of_real_pages, TRUE, 0, 0); //remove finished pages
+		}
+		else
+		{
+			if (ReleaseSemaphore(vacent_pages_semaphore, 1, NULL) == FALSE)	// Signal that exactly one cell was emptied
+			{
+				const int error = GetLastError();
+				printf("Error when realisng real pages  mutex error num: %d\n", error);
+				exit(1);
+			}
+				
+		}
 
 
 
 		
 		*clock = find_neareset(importent_times, *clock, *num_of_times);
-		write_to_file(*number_of_real_pages, TRUE, 0, 0); //remove finished pages
+
+		//write_to_file(*number_of_real_pages, TRUE, 0, 0); //remove finished pages
 
 		// exot the critical section
 		if (ReleaseMutex(DB_mutex_handle) == false) // release the DB mutex
@@ -373,16 +389,22 @@ DWORD WINAPI Page_thread_func(LPVOID lpParam)
 			printf("Error when waiting for the DB Semaphore error code: %d\n", error);
 			exit(1);
 		}
+		write_to_file(*p_params->num_of_real_pages, TRUE, 0, 0); //remove finished pages
 		// now we can check the DB to see if we need to add the curreent page to the tabels
 		if (vir_pages[frame_num].valid == TRUE)// meaning the current page is already in the DB
 		{
-			
+			// first remove the old finish time
+			//find_neareset(importent_times, vir_pages[frame_num].End_Time, *num_of_times); // the clock is the closest to itself so it will remove it 
 			vir_pages[frame_num].End_Time = needed_time+ *clock; // update the end time
 			real_pages[vir_pages[frame_num].Frame_num].End_Time = vir_pages[frame_num].End_Time; // update the end time in the real page as well
 
 			find_neareset(importent_times, *clock, *num_of_times); // the clock is the closest to itself so it will remove it 
 			add_member(importent_times, vir_pages[frame_num].End_Time, *num_of_times);
 			printf("updated fram num: %d  to be %d \n", frame_num, vir_pages[frame_num].End_Time);
+			release_res = ReleaseSemaphore(
+				increase_clock_semaphore,
+				1, 		// Signal that exactly one cell was emptied
+				&previous_count);
 		}
 		else // the page is not in the physycal page table
 			// maybe add here clear the vir table
@@ -513,7 +535,7 @@ BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty, int frame_num, int
 	{
 		for (j = 0;j < num_of_real_pages; j++)
 		{
-			if (*clock > real_pages[j].End_Time && real_pages[j].valid == TRUE)// meaning the current page finished its time
+			if (*clock >= real_pages[j].End_Time && real_pages[j].valid == TRUE)// meaning the current page finished its time
 			{// we need to remove it from the table and updte the output file
 				vir_pages[real_pages[j].Frame_num].valid = FALSE;
 				real_pages[j].valid = FALSE;
@@ -581,12 +603,12 @@ BOOL write_to_file(int num_of_real_pages, BOOL need_to_empty, int frame_num, int
 	return TRUE;
 }
 
-BOOL check_if_need_to_advance_time(int num_of_vir_pages)
+BOOL check_if_need_to_advance_time(int num_of_real_pages)
 {
 	BOOL advance = TRUE;
-	for (int i = 0; i < num_of_vir_pages; i++)
+	for (int i = 0; i < num_of_real_pages; i++)
 	{
-		if (vir_pages[i].valid == FALSE)
+		if (real_pages[i].valid == FALSE)
 		{
 			return FALSE;
 		}
